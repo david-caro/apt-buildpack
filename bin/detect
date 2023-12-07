@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/detect <build-dir>
+# bin/detect
 
 if [[ -f Aptfile ]]; then
   echo "Apt" && exit 0
