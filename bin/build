@@ -1,11 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # fail fast
-set -eo pipefail
+set -o pipefail
+set -o nounset
+set -o errexit
 
-set -eu
+set -x
 
 start_time=$(date +%s%N)
+CURDIR="$(dirname $0)"
+layers_dir="$1"
+env_dir="$2/env"
+apt_layer=$layers_dir/apt
+
 
 # debug
 #set -x
@@ -27,9 +34,20 @@ function indent() {
   esac
 }
 
-layers_dir="$1"
-env_dir="$2/env"
-plan_path="$3"
+function download_with_deps() {
+  local package="${1?No package passed}"
+  local dependency
+
+  apt-get $APT_OPTIONS -y $APT_FORCE_YES -d download "$package" | indent
+  # poor-devel's recursive dependency downloader as we don't have apt-rdepends
+  for dependency in $(apt-cache depends "$package" | grep 'Depends:' | awk '{print $2}'); do
+    if ! grep -q "$dependency/" "$CURDIR"/runimage_installed.list; then
+      topic "Fetching .debs for dependency $dependency (pulled by $package)"
+      download_with_deps "$dependency"
+    fi
+  done
+
+}
 
 if compgen -G "${env_dir}/*" > /dev/null; then
   for var in ${env_dir}/*; do
@@ -37,7 +55,6 @@ if compgen -G "${env_dir}/*" > /dev/null; then
   done
 fi
 
-apt_layer=$layers_dir/apt
 mkdir -p $apt_layer
 
 # Store which STACK we are running on in the cache to bust the cache if it changes
@@ -95,12 +112,12 @@ else
       curl --silent --show-error --fail -L -z $PACKAGE_FILE -o $PACKAGE_FILE $PACKAGE 2>&1 | indent
     else
       topic "Fetching .debs for $PACKAGE"
-      apt-get $APT_OPTIONS -y $APT_FORCE_YES -d install --reinstall $PACKAGE | indent
+      download_with_deps "$PACKAGE"
     fi
   done
 
   topic "Installing apt packages with dpkg"
-  for DEB in $(ls -1 $APT_CACHE_DIR/archives/*.deb); do
+  for DEB in *.deb; do
     echo "$(basename $DEB)" | indent
     dpkg -x $DEB $apt_layer/
   done
