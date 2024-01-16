@@ -1,3 +1,6 @@
+## Genereted with dcaro@urcuchillay$ podman run -ti --rm --entrypoint bash heroku/heroku:22-cnb 
+## heroku@fb655d64a492:/$ apt list
+## Tue Jan 16 04:37:58 PM CET 2024
 adduser/now 3.118ubuntu5 all [installed,local]
 apt-transport-https/now 2.4.11 all [installed,local]
 apt-utils/now 2.4.11 amd64 [installed,local]
