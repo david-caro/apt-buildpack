@@ -27,6 +27,17 @@ function indent() {
   esac
 }
 
+function download_with_deps() {
+  local package="${1?No package passed}"
+  local dependency
+
+  apt-get $APT_OPTIONS -y $APT_FORCE_YES -d download "$PACKAGE" | indent
+  for dependency  in $(apt-cache depends "$package" | grep 'Depends:' | cut -d' ' -f2); do
+    apt-get download "$dependency" | indent
+  done
+
+}
+
 layers_dir="$1"
 env_dir="$2/env"
 plan_path="$3"
@@ -95,7 +106,7 @@ else
       curl --silent --show-error --fail -L -z $PACKAGE_FILE -o $PACKAGE_FILE $PACKAGE 2>&1 | indent
     else
       topic "Fetching .debs for $PACKAGE"
-      apt-get $APT_OPTIONS -y $APT_FORCE_YES -d install --reinstall $PACKAGE | indent
+      download_with_deps "$PACKAGE"
     fi
   done
 
