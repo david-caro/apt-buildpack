@@ -5,17 +5,16 @@ set -o pipefail
 set -o nounset
 set -o errexit
 
-set -x
-
 start_time=$(date +%s%N)
 CURDIR="$(dirname $0)"
 layers_dir="$1"
 env_dir="$2/env"
 apt_layer=$layers_dir/apt
 
-
 # debug
-#set -x
+if [[ "${DEBUG:=false}" != "false" ]]; then
+  set -x
+fi
 
 function error() {
   echo " !     $*" >&2
