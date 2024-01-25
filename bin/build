@@ -35,15 +35,42 @@ function indent() {
 
 function download_with_deps() {
   local package="${1?No package passed}"
-  local dependency
+  local dependency \
+    orig_pkg
+  local downloaded_list="/tmp/downloaded.txt"
+  [[ -f "$downloaded_list" ]] || echo "" >"$downloaded_list"
+
+  # Resolve virtual packages
+  orig_pkg=$package
+  if [[ "$package" == \<*\> ]]; then
+    orig_pkg=$package
+  fi
+  package="$(apt-cache showpkg "$orig_pkg" | sed -n '/Reverse Provides:/,$p' | tail -n 1 | awk '{print $1}')"
+  if [[ "$package" == "" ]] || [[ "$package" = "Reverse" ]]; then 
+    package="$orig_pkg"
+  else
+    echo "Choosing $package for virtual package $orig_pkg" | indent
+  fi
+
+  # skip already downloaded packages
+  if grep -q "^${package}$" "$downloaded_list"; then
+    echo "Skipping $package, already downloaded." | indent
+    return
+  fi
+
+  # skip already installed packages
+  if grep -q "$package/" "$CURDIR"/runimage_installed.list; then
+    echo "Skipping $package, already installed in run image." | indent
+    return
+  fi
 
   apt-get $APT_OPTIONS -y $APT_FORCE_YES -d download "$package" | indent
+  echo "$package" >> "$downloaded_list"
+
   # poor-devel's recursive dependency downloader as we don't have apt-rdepends
   for dependency in $(apt-cache depends "$package" | grep 'Depends:' | awk '{print $2}'); do
-    if ! grep -q "$dependency/" "$CURDIR"/runimage_installed.list; then
-      topic "Fetching .debs for dependency $dependency (pulled by $package)"
-      download_with_deps "$dependency"
-    fi
+    topic "Fetching .debs for dependency $dependency (pulled by $package)"
+    download_with_deps "$dependency"
   done
 
 }
@@ -101,6 +128,13 @@ else
   topic "Updating apt caches"
   # Ignore stderr from apt-get update containing: rm: cannot remove '/var/cache/apt/archives/partial/*.deb': Permission denied
   apt-get $APT_OPTIONS update 2> >(grep -v "rm: cannot remove") | indent
+
+  if [[ "$DEBUG" == "true" ]]; then
+    echo "Got Aptfile:" | indent
+    indent <Aptfile
+    echo "Got run image packages:" | indent
+    indent <"$CURDIR"/runimage_installed.list
+  fi
 
   for PACKAGE in $(cat Aptfile | grep -v -s -e '^#' | grep -v -s -e "^:repo:"); do
     if [[ $PACKAGE == *deb ]]; then
